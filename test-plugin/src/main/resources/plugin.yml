@@ -1,0 +1,17 @@
+name: FoliaGUITest
+version: 1.0.0
+main: com.thenextlvl.foliagui.test.FoliaGUITestPlugin
+api-version: '1.20'
+folia-supported: true
+author: TheNextLvl
+
+commands:
+  fguitest:
+    description: FoliaGUI测试命令
+    usage: /fguitest [basic|advanced|playerinv|declarative|declinv|reload|info]
+    aliases: [fgt, guitest]
+
+permissions:
+  foliagui.test:
+    description: 允许使用FoliaGUI测试命令
+    default: op

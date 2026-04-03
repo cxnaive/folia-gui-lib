@@ -1,0 +1,43 @@
+name: FoliaGUIToolkit
+version: ${project.version}
+main: com.thenextlvl.foliagui.toolkit.FoliaGUIToolkit
+api-version: 1.20
+author: TheNextLvl
+description: Development toolkit for FoliaGUI library - standalone editor and exporter
+
+# Folia support
+folia-supported: true
+
+# No dependencies - FoliaGUI is bundled via maven-shade-plugin
+
+commands:
+  fgt:
+    description: FoliaGUI Toolkit commands
+    usage: /fgt <list|view|export|create|edit|save|delete> [args]
+    permission: foliagui.toolkit
+
+permissions:
+  foliagui.toolkit:
+    description: Access to FoliaGUI Toolkit commands
+    default: op
+  foliagui.toolkit.list:
+    description: List registered GUIs
+    default: op
+  foliagui.toolkit.view:
+    description: View GUI configuration
+    default: op
+  foliagui.toolkit.export:
+    description: Export GUI configuration
+    default: op
+  foliagui.toolkit.create:
+    description: Create new GUI
+    default: op
+  foliagui.toolkit.edit:
+    description: Edit existing GUI
+    default: op
+  foliagui.toolkit.save:
+    description: Save GUI configuration
+    default: op
+  foliagui.toolkit.delete:
+    description: Delete GUI
+    default: op
