@@ -2,12 +2,15 @@ package com.thenextlvl.foliagui.builder;
 
 import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -19,9 +22,10 @@ import java.util.*;
  * @author TheNextLvl
  */
 public class ItemBuilder {
-    
+
     private final ItemStack item;
     private ItemMeta meta;
+    private String pdcNamespace = "foliagui"; // PDC 命名空间
     
     private ItemBuilder(@NotNull Material material) {
         this.item = new ItemStack(material);
@@ -206,7 +210,183 @@ public class ItemBuilder {
         }
         return this;
     }
-    
+
+    // ==================== PDC (Persistent Data Container) 支持 ====================
+
+    /**
+     * 设置 PDC 数据
+     * <p>
+     * 示例:
+     * <pre>
+     * ItemBuilder.of(Material.DIAMOND_SWORD)
+     *     .pdc("enchantment", PersistentDataType.STRING, "sharpness")
+     *     .pdc("level", PersistentDataType.INTEGER, 5)
+     *     .build();
+     * </pre>
+     *
+     * @param key 键名（将使用插件默认命名空间）
+     * @param type 数据类型
+     * @param value 值
+     * @return 此构建器
+     */
+    @NotNull
+    public <T, Z> ItemBuilder pdc(@NotNull String key, @NotNull PersistentDataType<T, Z> type, @NotNull Z value) {
+        if (meta != null) {
+            NamespacedKey namespacedKey = getPDCKey(key);
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(namespacedKey, type, value);
+        }
+        return this;
+    }
+
+    /**
+     * 设置 PDC 数据（使用自定义 NamespacedKey）
+     *
+     * @param key NamespacedKey
+     * @param type 数据类型
+     * @param value 值
+     * @return 此构建器
+     */
+    @NotNull
+    public <T, Z> ItemBuilder pdc(@NotNull NamespacedKey key, @NotNull PersistentDataType<T, Z> type, @NotNull Z value) {
+        if (meta != null) {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(key, type, value);
+        }
+        return this;
+    }
+
+    /**
+     * 设置 PDC 字符串数据
+     *
+     * @param key 键名
+     * @param value 字符串值
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcString(@NotNull String key, @NotNull String value) {
+        return pdc(key, PersistentDataType.STRING, value);
+    }
+
+    /**
+     * 设置 PDC 整数数据
+     *
+     * @param key 键名
+     * @param value 整数值
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcInt(@NotNull String key, int value) {
+        return pdc(key, PersistentDataType.INTEGER, value);
+    }
+
+    /**
+     * 设置 PDC 布尔数据
+     *
+     * @param key 键名
+     * @param value 布尔值
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcBoolean(@NotNull String key, boolean value) {
+        return pdc(key, PersistentDataType.BYTE, (byte) (value ? 1 : 0));
+    }
+
+    /**
+     * 设置 PDC 双精度浮点数数据
+     *
+     * @param key 键名
+     * @param value 双精度浮点数值
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcDouble(@NotNull String key, double value) {
+        return pdc(key, PersistentDataType.DOUBLE, value);
+    }
+
+    /**
+     * 设置 PDC 长整数数据
+     *
+     * @param key 键名
+     * @param value 长整数值
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcLong(@NotNull String key, long value) {
+        return pdc(key, PersistentDataType.LONG, value);
+    }
+
+    /**
+     * 移除 PDC 数据
+     *
+     * @param key 键名
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder removePdc(@NotNull String key) {
+        if (meta != null) {
+            NamespacedKey namespacedKey = getPDCKey(key);
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.remove(namespacedKey);
+        }
+        return this;
+    }
+
+    /**
+     * 检查是否有 PDC 数据
+     *
+     * @param key 键名
+     * @param type 数据类型
+     * @return 是否存在
+     */
+    public boolean hasPdc(@NotNull String key, @NotNull PersistentDataType<?, ?> type) {
+        if (meta == null) return false;
+        NamespacedKey namespacedKey = getPDCKey(key);
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        return pdc.has(namespacedKey, type);
+    }
+
+    /**
+     * 获取 PDC 数据
+     *
+     * @param key 键名
+     * @param type 数据类型
+     * @return 值，如果不存在则返回 null
+     */
+    @Nullable
+    public <T, Z> Z getPdc(@NotNull String key, @NotNull PersistentDataType<T, Z> type) {
+        if (meta == null) return null;
+        NamespacedKey namespacedKey = getPDCKey(key);
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        return pdc.get(namespacedKey, type);
+    }
+
+    /**
+     * 设置 PDC 命名空间
+     * <p>
+     * 默认使用 "foliagui" 作为命名空间
+     * 可以通过此方法自定义命名空间
+     *
+     * @param namespace 命名空间
+     * @return 此构建器
+     */
+    @NotNull
+    public ItemBuilder pdcNamespace(@NotNull String namespace) {
+        this.pdcNamespace = namespace;
+        return this;
+    }
+
+    /**
+     * 获取 PDC 键
+     *
+     * @param key 键名
+     * @return NamespacedKey
+     */
+    @NotNull
+    private NamespacedKey getPDCKey(@NotNull String key) {
+        return new NamespacedKey(pdcNamespace, key);
+    }
+
     /**
      * 构建ItemStack
      * @return ItemStack

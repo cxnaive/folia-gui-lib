@@ -2,6 +2,7 @@ package com.thenextlvl.foliagui.internal;
 
 import com.thenextlvl.foliagui.annotation.GUIConfig;
 import com.thenextlvl.foliagui.api.GUI;
+import com.thenextlvl.foliagui.api.content.ContentManager;
 import com.thenextlvl.foliagui.api.event.ClickEvent;
 import com.thenextlvl.foliagui.api.event.CloseEvent;
 import com.thenextlvl.foliagui.api.event.OpenEvent;
@@ -60,6 +61,9 @@ public abstract class AbstractDeclarativeGUI implements GUI {
     protected GUI builtGUI;
     protected Player viewer;
     protected boolean isOpen = false;
+
+    // 内容管理器
+    private ContentManager contentManager;
 
     // 响应式绑定
     private final Map<Integer, List<Runnable>> slotBindings = new HashMap<>();
@@ -364,5 +368,32 @@ public abstract class AbstractDeclarativeGUI implements GUI {
      */
     protected int getBindingCount() {
         return allBindings.size();
+    }
+
+    @Override
+    @NotNull
+    public ContentManager getContentManager() {
+        if (contentManager == null) {
+            contentManager = new ContentManager();
+        }
+        return contentManager;
+    }
+
+    @Override
+    @Nullable
+    public Object getSlotData(int slot) {
+        if (contentManager != null) {
+            return contentManager.getDynamicData(slot);
+        }
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public <T> T getSlotData(int slot, @NotNull Class<T> type) {
+        if (contentManager != null) {
+            return contentManager.getDynamicData(slot, type);
+        }
+        return null;
     }
 }

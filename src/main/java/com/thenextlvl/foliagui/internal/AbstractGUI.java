@@ -1,6 +1,7 @@
 package com.thenextlvl.foliagui.internal;
 
 import com.thenextlvl.foliagui.api.GUI;
+import com.thenextlvl.foliagui.api.content.ContentManager;
 import com.thenextlvl.foliagui.api.component.Component;
 import com.thenextlvl.foliagui.api.event.ClickEvent;
 import com.thenextlvl.foliagui.api.event.CloseEvent;
@@ -45,6 +46,9 @@ public abstract class AbstractGUI implements GUI, Listener {
     protected boolean isOpen = false;
     protected Location location;
     protected SoundConfig soundConfig;
+
+    // 内容管理器 - 用于管理动态内容并提供槽位索引查找
+    protected ContentManager contentManager;
 
     private Consumer<ClickEvent> clickHandler;
     private Consumer<OpenEvent> openHandler;
@@ -166,6 +170,124 @@ public abstract class AbstractGUI implements GUI, Listener {
             refreshInventory();
             viewer.updateInventory();
         });
+    }
+
+    /**
+     * 刷新指定槽位的内容（无音效，批量合并）
+     * <p>
+     * 使用ContentManager提供的内容更新槽位，直接操作Inventory，
+     * 不重新打开界面，避免播放开关音效。
+     * <p>
+     * 这是解决GUI频繁重开导致音效问题的关键方法。
+     *
+     * @param slots 要刷新的槽位数组
+     */
+    public void refreshSlots(int... slots) {
+        if (!isOpen || viewer == null || inventory == null) return;
+        markDirty(slots);
+    }
+
+    /**
+     * 刷新所有动态内容（无音效）
+     * <p>
+     * 如果设置了ContentManager，使用其提供的内容更新所有注册槽位。
+     * 直接操作Inventory，不重新打开界面。
+     */
+    public void refreshAllContent() {
+        if (!isOpen || viewer == null || inventory == null) return;
+
+        if (contentManager != null) {
+            // 使用ContentManager刷新
+            FoliaScheduler.runOnPlayer(viewer, () -> {
+                contentManager.refreshContents(inventory);
+                viewer.updateInventory();
+            });
+        } else {
+            // 使用标准刷新
+            refresh();
+        }
+    }
+
+    /**
+     * 立即刷新指定槽位（无延迟）
+     * <p>
+     * 直接在当前线程更新槽位内容，适用于需要立即反馈的场景。
+     * 注意：调用此方法时必须确保已在玩家线程执行。
+     *
+     * @param slot 槽位
+     */
+    public void refreshSlotImmediate(int slot) {
+        if (!isOpen || viewer == null || inventory == null) return;
+        if (slot < 0 || slot >= inventory.getSize()) return;
+
+        Component component = getComponent(slot);
+        if (component != null) {
+            inventory.setItem(slot, getDisplayItemResolved(component, viewer));
+        } else if (contentManager != null && contentManager.isRegistered(slot)) {
+            ItemStack content = contentManager.getContent(slot);
+            if (content != null) {
+                inventory.setItem(slot, content);
+            }
+        }
+    }
+
+    /**
+     * 获取内容管理器
+     * <p>
+     * 用于管理动态内容并提供槽位索引查找，解决闭包变量问题。
+     *
+     * @return 内容管理器，如果未设置则创建一个新的
+     */
+    @NotNull
+    public ContentManager getContentManager() {
+        if (contentManager == null) {
+            contentManager = new ContentManager();
+        }
+        return contentManager;
+    }
+
+    /**
+     * 设置内容管理器
+     *
+     * @param manager 内容管理器
+     * @return 此GUI实例
+     */
+    @NotNull
+    public GUI setContentManager(@Nullable ContentManager manager) {
+        this.contentManager = manager;
+        return this;
+    }
+
+    /**
+     * 动态获取槽位关联的数据
+     * <p>
+     * 使用ContentManager的动态查找功能，解决点击处理器中的闭包问题。
+     * 在点击处理器中调用此方法可以获取当前槽位对应的最新数据。
+     *
+     * @param slot 槽位
+     * @return 动态数据对象
+     */
+    @Nullable
+    public Object getSlotData(int slot) {
+        if (contentManager != null) {
+            return contentManager.getDynamicData(slot);
+        }
+        return null;
+    }
+
+    /**
+     * 动态获取槽位关联的数据（带类型转换）
+     *
+     * @param slot 槽位
+     * @param type 数据类型
+     * @return 动态数据
+     */
+    @Nullable
+    public <T> T getSlotData(int slot, @NotNull Class<T> type) {
+        if (contentManager != null) {
+            return contentManager.getDynamicData(slot, type);
+        }
+        return null;
     }
 
     @Override
@@ -559,19 +681,29 @@ public abstract class AbstractGUI implements GUI, Listener {
     /**
      * 返还物品给玩家
      * <p>
-     * 当 GUI 关闭时，返还所有 ItemSlot 中的物品以及误放入空槽位的物品
+     * 当 GUI 关闭时，返还所有 ItemSlot 中的物品以及误放入空槽位的物品。
+     * 安全机制：直接检查inventory中的实际物品，防止因Shift+点击等操作导致storedItem未更新而丢失物品。
      */
     protected void returnItemsToPlayer(@NotNull Player player) {
         java.util.Map<Integer, org.bukkit.inventory.ItemStack> itemsToReturn = new java.util.HashMap<>();
 
-        // 收集所有 ItemSlot 中的物品
+        // 收集所有 ItemSlot 中的物品（直接从inventory获取，确保不丢失物品）
         for (java.util.Map.Entry<Integer, Component> entry : getAllComponents().entrySet()) {
             int slot = entry.getKey();
             Component component = entry.getValue();
 
             if (component instanceof ItemSlotImpl itemSlot) {
-                if (itemSlot.isAutoReturn() && itemSlot.getStoredItem() != null) {
-                    itemsToReturn.put(slot, itemSlot.getStoredItem());
+                if (itemSlot.isAutoReturn()) {
+                    // 直接从inventory获取实际物品，而不是从storedItem获取
+                    // 这样可以处理Shift+点击等操作导致storedItem未更新的情况
+                    if (inventory != null && slot >= 0 && slot < inventory.getSize()) {
+                        org.bukkit.inventory.ItemStack actualItem = inventory.getItem(slot);
+                        if (actualItem != null && !actualItem.getType().isAir()) {
+                            itemsToReturn.put(slot, actualItem);
+                            inventory.setItem(slot, null);
+                        }
+                    }
+                    // 同时清理storedItem（如果有）
                     itemSlot.clear();
                 }
             }
