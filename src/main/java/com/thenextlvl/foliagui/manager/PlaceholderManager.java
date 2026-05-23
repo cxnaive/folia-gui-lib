@@ -133,9 +133,9 @@ public final class PlaceholderManager {
             // 查找后缀
             int suffixIndex = text.indexOf(PLACEHOLDER_SUFFIX, prefixIndex + 1);
             if (suffixIndex == -1) {
-                // 没有后缀，直接添加剩余内容
+                // 没有后缀，直接添加剩余内容并返回
                 result.append(text.substring(prefixIndex));
-                break;
+                return result.toString();
             }
 
             // 提取占位符名称
